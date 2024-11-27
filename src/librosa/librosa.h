@@ -26,6 +26,8 @@
 #include <complex>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
+#include <cstdio>
 
 ///
 /// \brief c++ implemention of librosa
@@ -76,9 +78,13 @@ static Vectorf pad(Vectorf &x, int left, int right, const std::string &mode, flo
   return x_paded;
 }
 
-static Matrixcf stft(Vectorf &x, int n_fft, int n_hop, const std::string &win, bool center, const std::string &mode){
+static Matrixcf stft(Vectorf &x, int n_fft, int n_hop, const std::string &win, bool center, const std::string &mode, bool normalized){
   // hanning
   Vectorf window = 0.5*(1.f-(Vectorf::LinSpaced(n_fft, 0.f, static_cast<float>(n_fft-1))*2.f*M_PI/n_fft).array().cos());
+  float norm_ratio = 1.0f;
+  if (normalized) {
+    norm_ratio = 1.0f / sqrtf(n_fft);
+  }
 
   int pad_len = center ? n_fft / 2 : 0;
   Vectorf x_paded = pad(x, pad_len, pad_len, mode, 0.f);
@@ -92,7 +98,52 @@ static Matrixcf stft(Vectorf &x, int n_fft, int n_hop, const std::string &win, b
     Vectorf x_frame = window.array()*x_paded.segment(i*n_hop, n_fft).array();
     X.row(i) = fft.fwd(x_frame);
   }
-  return X.leftCols(n_f);
+  auto res = X.leftCols(n_f);
+  res = res * norm_ratio;
+  return res;
+}
+
+static Vectorf window_sumsquared(const Vectorf& window, int n_fft, int n_hop, int n_frames, bool center) {
+  Vectorf norm_win = window / window.maxCoeff();
+  Vectorf win_sq = norm_win.cwiseProduct(norm_win);
+  int n = n_fft + n_hop * (n_frames - 1);
+  Vectorf x(n);
+
+  for (int i = 0; i < n_frames; i++) {
+    int sample = i * n_hop;
+    x.segment(sample, std::min(n - sample, n_fft)) += win_sq.segment(0, std::max(0, std::min(n_fft, n - sample)));
+  }
+  for (int i = 0; i < n; i++) {
+    if (x(i) < 1e-8) {
+      x(i) = 1.0f;
+    }
+  }
+  return x;
+}
+
+static Vectorf istft(Matrixcf &stft_matrix, int n_fft, int n_hop, const std::string &win, bool center, const std::string &mode, bool normalized){
+  // hanning
+  Vectorf window = 0.5*(1.f-(Vectorf::LinSpaced(n_fft, 0.f, static_cast<float>(n_fft-1))*2.f*M_PI/n_fft).array().cos());
+  int n_frames = stft_matrix.cols();
+  Vectorf win_sum = window_sumsquared(window, n_fft, n_hop, n_frames, center);
+
+  int expected_signal_len = n_hop * (n_frames - 1) + n_fft;
+  Vectorf y(expected_signal_len);
+  Eigen::FFT<float> fft;
+  Vectorcf ft(n_fft);
+
+  for (int i = 0; i < n_frames; i++) {
+    int sample = i * n_hop;
+    ft.head(stft_matrix.rows()) = stft_matrix.col(i);
+    ft.tail(n_fft-stft_matrix.rows()) = stft_matrix.col(i).segment(1, (n_fft-1)/2).conjugate().reverse();
+    Vectorf iffted = fft.inv(ft, n_fft);
+
+    y.segment(sample, n_fft) += iffted.cwiseProduct(window);
+  }
+
+  y = y.array() / win_sum.array();
+
+  return y.segment(n_fft / 2, n_hop * (n_frames - 1));
 }
 
 static Matrixf spectrogram(Matrixcf &X, float power = 1.f){
@@ -147,7 +198,7 @@ static Matrixf melspectrogram(Vectorf &x, int sr, int n_fft, int n_hop,
                         const std::string &win, bool center,
                         const std::string &mode, float power,
                         int n_mels, int fmin, int fmax){
-  Matrixcf X = stft(x, n_fft, n_hop, win, center, mode);
+  Matrixcf X = stft(x, n_fft, n_hop, win, center, mode, false);
   Matrixf mel_basis = melfilter(sr, n_fft, n_mels, fmin, fmax);
   Matrixf sp = spectrogram(X, power);
   Matrixf mel = mel_basis*sp.transpose();
@@ -191,15 +242,28 @@ public:
   static std::vector<std::vector<std::complex<float>>> stft(std::vector<float> &x,
                                                             int n_fft, int n_hop,
                                                             const std::string &win, bool center,
-                                                            const std::string &mode){
+                                                            const std::string &mode, bool normalized){
     Vectorf map_x = Eigen::Map<Vectorf>(x.data(), x.size());
-    Matrixcf X = internal::stft(map_x, n_fft, n_hop, win, center, mode);
+    Matrixcf X = internal::stft(map_x, n_fft, n_hop, win, center, mode, normalized);
     std::vector<std::vector<std::complex<float>>> X_vector(X.rows(), std::vector<std::complex<float>>(X.cols(), 0));
     for (int i = 0; i < X.rows(); ++i){
       auto &row = X_vector[i];
       Eigen::Map<Vectorcf>(row.data(), row.size()) = X.row(i);
     }
     return X_vector;
+  }
+
+  static std::vector<float> istft(std::vector<std::vector<std::complex<float>>> &x,
+                                                            int n_fft, int n_hop,
+                                                            const std::string &win, bool center,
+                                                            const std::string &mode, bool normalized){
+    Matrixcf map_x(x.size(), x[0].size());
+    for (int i = 0; i < map_x.rows(); i++) {
+      map_x.row(i) = Eigen::Map<Vectorcf>(x[i].data(), x[i].size());
+    }
+    Vectorf X = internal::istft(map_x, n_fft, n_hop, win, center, mode, normalized);
+    std::vector<float> res(X.data(), X.data() + X.size());
+    return res;
   }
 
   /// \brief      compute mel spectrogram similar with librosa.feature.melspectrogram
