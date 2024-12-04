@@ -101,7 +101,7 @@ inv_f = torch.istft(
     win_length=n_fft,
     window=torch.hann_window(n_fft),
     center=True,
-    normalized=False,
+    normalized=True,
     return_complex=False
 )
 inv_f = inv_f.numpy()

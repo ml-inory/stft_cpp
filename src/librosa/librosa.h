@@ -142,6 +142,8 @@ static Vectorf istft(Matrixcf &stft_matrix, int n_fft, int n_hop, const std::str
   }
 
   y = y.array() / win_sum.array();
+  if (normalized)
+    y = y * sqrtf(n_fft);
 
   return y.segment(n_fft / 2, n_hop * (n_frames - 1));
 }
