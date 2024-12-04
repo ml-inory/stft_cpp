@@ -100,7 +100,7 @@ static Matrixcf stft(Vectorf &x, int n_fft, int n_hop, const std::string &win, b
   }
   auto res = X.leftCols(n_f);
   res = res * norm_ratio;
-  return res;
+  return res.transpose();
 }
 
 static Vectorf window_sumsquared(const Vectorf& window, int n_fft, int n_hop, int n_frames, bool center) {
@@ -113,11 +113,11 @@ static Vectorf window_sumsquared(const Vectorf& window, int n_fft, int n_hop, in
     int sample = i * n_hop;
     x.segment(sample, std::min(n - sample, n_fft)) += win_sq.segment(0, std::max(0, std::min(n_fft, n - sample)));
   }
-  for (int i = 0; i < n; i++) {
-    if (x(i) < 1e-8) {
-      x(i) = 1.0f;
-    }
-  }
+  // for (int i = 0; i < n; i++) {
+  //   if (x(i) < 1e-8) {
+  //     x(i) = 1.0f;
+  //   }
+  // }
   return x;
 }
 
@@ -141,9 +141,21 @@ static Vectorf istft(Matrixcf &stft_matrix, int n_fft, int n_hop, const std::str
     y.segment(sample, n_fft) += iffted.cwiseProduct(window);
   }
 
-  y = y.array() / win_sum.array();
-  if (normalized)
-    y = y * sqrtf(n_fft);
+  for (int i = 0; i < expected_signal_len; i++) {
+    if (win_sum(i) != 0.f) {
+      y(i) /= win_sum(i);
+    }
+  }
+  if (normalized) {
+    // float sqsum = 0.f;
+    // for (int i = 0; i < n_fft; i++)
+    // {
+    //     sqsum += window(i) * window(i);
+    // }
+    // float norm_ratio = sqrtf(sqsum);
+    float norm_ratio = sqrtf(n_fft);
+    y = y * norm_ratio;
+  }
 
   return y.segment(n_fft / 2, n_hop * (n_frames - 1));
 }
