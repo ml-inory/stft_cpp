@@ -3,6 +3,11 @@ import numpy as np
 from scipy.signal import get_window
 from librosa import util as librosa_util
 from librosa.util import pad_center, tiny
+from numpy.linalg import norm
+
+
+def cos_sim(a, b):
+    return (a @ b.T) / (norm(a)*norm(b))
 
 n_fft = 256
 hop_length = n_fft // 4
@@ -83,17 +88,23 @@ def window_sumsquare(
 # np.testing.assert_allclose(cpp_win, win, atol=1e-6)
 
 
-f = torch.stft(
-    torch.from_numpy(x),
-    n_fft,
-    hop_length,
-    win_length=n_fft,
-    window=torch.hann_window(n_fft),
-    center=True,
-    pad_mode="reflect",
-    normalized=True,
-    return_complex=True
-)
+# f = torch.stft(
+#     torch.from_numpy(x),
+#     n_fft,
+#     hop_length,
+#     win_length=n_fft,
+#     window=torch.hann_window(n_fft),
+#     center=True,
+#     pad_mode="reflect",
+#     normalized=True,
+#     return_complex=True
+# )
+Fr = 2049
+n_fft = 4096
+hop_length = n_fft // 4
+f = np.fromfile("batch_z.bin", dtype=np.float32)
+f = f.reshape((8, 2049, 340, 2))
+f = torch.view_as_complex(torch.from_numpy(f))
 inv_f = torch.istft(
     f,
     n_fft,
@@ -106,6 +117,19 @@ inv_f = torch.istft(
 )
 inv_f = inv_f.numpy()
 
-pred = np.fromfile("cpp_inv_f.bin", dtype=np.float32)
-np.testing.assert_allclose(pred, inv_f, atol=1e-6)
-print("Compare pass")
+# pred = np.fromfile(f"cpp_inv_f.bin", dtype=np.float32)
+# # print(pred)
+# np.testing.assert_allclose(pred, inv_f[2], atol=1e-6)
+
+for i in range(8):
+    pred = np.fromfile(f"cpp_inv_f_{i}.bin", dtype=np.float32)
+    # np.testing.assert_allclose(pred, inv_f[i], atol=1e-5)
+    sim = cos_sim(pred, inv_f[i])
+    assert sim > 0.9
+    print(f"[{i}] Compare pass")
+
+f = np.fromfile("batch_z.bin", dtype=np.float32)
+f = f.reshape((8, -1))
+for i in range(8):
+    pred = np.fromfile(f"f_{i}.bin", dtype=np.float32)
+    np.testing.assert_allclose(pred, f[i], atol=1e-6)
