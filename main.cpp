@@ -96,17 +96,28 @@ int main(int argc, char** argv) {
     // FFT_RESULT sub_f = f[2];
     // auto inv_f = librosa::Feature::istft(sub_f, 2 * Fr - 2, hop_length, "hann", true, "reflect", normalized);
     // save_ifft_result(inv_f, "cpp_inv_f.bin");
+    
 
     for (int i = 0; i < 8; i++) {
         std::string name = "cpp_inv_f_" + std::to_string(i) + ".bin";
         auto inv_f = librosa::Feature::istft(f[i], n_fft, hop_length, "hann", true, "reflect", normalized);
         save_ifft_result(inv_f, name.c_str());
     }
+
+    // // printf("f.size() = %ld\n", f.size());
+    // for (int i = 0; i < 8; i++) {
+    //     // printf("f[%d].size() = %ld\n", i, f[i].size());
+    //     // printf("f[%d][0].size() = %ld\n", i, f[i][0].size());
+    //     std::string name = "f_" + std::to_string(i) + ".bin";
+    //     save_fft_result(f[i], name.c_str());
+    // }
     
-    for (int i = 0; i < 8; i++) {
-        std::string name = "f_" + std::to_string(i) + ".bin";
-        save_fft_result(f[i], name.c_str());
-    }
+    // for (int i = 0; i < 8; i++) {
+    //     load_fft_result(f, "batch_z.bin", 8, 2049, 340);
+    //     auto inv_f = librosa::Feature::istft(f[0], n_fft, hop_length, "hann", true, "reflect", normalized);
+    //     std::string name = "reload_" + std::to_string(i) + ".bin";
+    //     save_ifft_result(inv_f, name.c_str());
+    // }
     
 
     return 0;

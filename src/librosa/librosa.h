@@ -272,8 +272,12 @@ public:
                                                             const std::string &win, bool center,
                                                             const std::string &mode, bool normalized){
     Matrixcf map_x(x.size(), x[0].size());
+    map_x.setZero();
     for (int i = 0; i < map_x.rows(); i++) {
       map_x.row(i) = Eigen::Map<Vectorcf>(x[i].data(), x[i].size());
+      // for (int j = 0; j < map_x.cols(); j++) {
+      //   map_x(i, j) = x[i][j];
+      // }
     }
     Vectorf X = internal::istft(map_x, n_fft, n_hop, win, center, mode, normalized);
     std::vector<float> res(X.data(), X.data() + X.size());

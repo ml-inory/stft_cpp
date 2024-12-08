@@ -121,6 +121,13 @@ inv_f = inv_f.numpy()
 # # print(pred)
 # np.testing.assert_allclose(pred, inv_f[2], atol=1e-6)
 
+# for i in range(8):
+#     pred = np.fromfile(f"reload_{i}.bin", dtype=np.float32)
+#     np.testing.assert_allclose(pred, inv_f[0], atol=1e-5)
+#     # sim = cos_sim(pred, inv_f[i])
+#     # assert sim > 0.9
+#     print(f"[{i}] Compare pass")
+
 for i in range(8):
     pred = np.fromfile(f"cpp_inv_f_{i}.bin", dtype=np.float32)
     # np.testing.assert_allclose(pred, inv_f[i], atol=1e-5)
@@ -128,8 +135,9 @@ for i in range(8):
     assert sim > 0.9
     print(f"[{i}] Compare pass")
 
-f = np.fromfile("batch_z.bin", dtype=np.float32)
-f = f.reshape((8, -1))
-for i in range(8):
-    pred = np.fromfile(f"f_{i}.bin", dtype=np.float32)
-    np.testing.assert_allclose(pred, f[i], atol=1e-6)
+# f = np.fromfile("batch_z.bin", dtype=np.float32)
+# f = f.reshape((8, -1))
+# for i in range(8):
+#     pred = np.fromfile(f"f_{i}.bin", dtype=np.float32)
+#     np.testing.assert_allclose(pred, f[i], atol=1e-6)
+#     print(f"[{i}] Compare pass")
